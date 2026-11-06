@@ -657,12 +657,19 @@ UniXNUUiInit (
 
   if ((Config->Console == UniXNUConsoleAuto) || (Config->Console == UniXNUConsoleGraphics)) {
     Status = EFI_NOT_FOUND;
-    if (gST->ConsoleOutHandle != NULL) {
-      Status = gBS->HandleProtocol (gST->ConsoleOutHandle, &gEfiGraphicsOutputProtocolGuid, (VOID **)&Ui->Gop);
-    }
+    //
+    // G0245D: take the PHYSICAL GOP (LocateProtocol) first.  The GOP on
+    // ConsoleOutHandle is the ConSplitter proxy; with an active
+    // GraphicsConsoleDxe behind it the proxy's Blt semantics are no longer
+    // guaranteed to be a pass-through of the hardware blitter.  The v76
+    // probe (which renders through the physical GOP) is pixel-perfect while
+    // every menu build since v68 shows column-zone corruption, so the menu
+    // must draw through the very same protocol instance the probe used.
+    //
+    Status = gBS->LocateProtocol (&gEfiGraphicsOutputProtocolGuid, NULL, (VOID **)&Ui->Gop);
 
-    if (EFI_ERROR (Status)) {
-      Status = gBS->LocateProtocol (&gEfiGraphicsOutputProtocolGuid, NULL, (VOID **)&Ui->Gop);
+    if (EFI_ERROR (Status) && (gST->ConsoleOutHandle != NULL)) {
+      Status = gBS->HandleProtocol (gST->ConsoleOutHandle, &gEfiGraphicsOutputProtocolGuid, (VOID **)&Ui->Gop);
     }
 
     if (!EFI_ERROR (Status) && (Ui->Gop->Mode != NULL) && (Ui->Gop->Mode->Info != NULL)) {
