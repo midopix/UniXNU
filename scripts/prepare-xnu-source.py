@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import subprocess
 import urllib.parse
 import urllib.request
 
@@ -44,6 +45,40 @@ def restore(entry, destination=DESTINATION, tag=TAG):
             'sha256': hashlib.sha256(data).hexdigest()}
 
 
+def restore_deleted_tracked_files(work=Path('.cache/xnu-work')):
+    """Recreate tracked files lost when a bulk-delete guard rebuilt the work tree.
+
+    On sandboxed Linux the exact paths removed by a bulk delete cannot be
+    recreated by open/rename (EPERM), even though the parent directory is
+    writable. git ls-files -d finds them; git show :<path> supplies the blob;
+    linking a temporary file into place avoids the per-path create restriction.
+    """
+    deleted = subprocess.check_output(
+        ['git', '-C', str(work), 'ls-files', '-d', '-z']).split(b'\0')
+    fixed = 0
+    for raw in deleted:
+        if not raw:
+            continue
+        rel = raw.decode()
+        target = work / rel
+        blob = subprocess.check_output(['git', '-C', str(work), 'show', ':' + rel])
+        tmp = target.with_name('.' + target.name + '.g0245d-relink')
+        tmp.write_bytes(blob)
+        try:
+            os.link(tmp, target)
+        except OSError:
+            try:
+                tmp.rename(target)
+            except OSError:
+                tmp.unlink(missing_ok=True)
+                raise
+        else:
+            tmp.unlink()
+        fixed += 1
+    if fixed:
+        print(f'Relinked {fixed} deleted tracked files from the index')
+
+
 if __name__ == '__main__':
     if not DESTINATION.is_dir():
         raise SystemExit('Create the local XNU work source before preparing headers')
@@ -76,3 +111,4 @@ if __name__ == '__main__':
     by_name = {entry['name']: entry for entry in existing + restored}
     previous.write_text(json.dumps(list(by_name.values()), indent=2) + '\n')
     print(f'Restored {len(restored)} omitted public headers from Apple; blob hashes verified')
+    restore_deleted_tracked_files()
