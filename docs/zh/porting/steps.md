@@ -34,7 +34,7 @@ UniXNU 通过 UEFI 在 ARM64 设备上运行 iOS 或 macOS。架构见[欢迎页
 核对资源、平台操作和组件依赖，再将源码版本固定到设备配置。
 新 OS profile 需要先完成 [XNU 与补丁输入](/zh/xnu/source-and-patches)以及
 [预链接 ABI 工作](/zh/concepts/prelink)，再验证硬件驱动。
-iPadOS 26 等 arm64e 系统仅适用于受支持的设备，见 [arm64e OS 配置](/zh/porting/arm64e)。
+iOS 或 iPadOS 27 等 arm64e 系统仅适用于受支持的设备，见 [arm64e OS 配置](/zh/porting/arm64e)。
 
 **结果：** 已选仓库及精确版本，以及待完成的硬件或 ABI 工作记录。
 
@@ -104,7 +104,7 @@ boot image 另需设备固件使用的 DTB。
 ## 6. 按依赖顺序适配驱动
 
 沿[驱动适配](/zh/porting/drivers)依次完成平台与内存、存储、显示与亮度、输入、GPU、
-Wi-Fi，再处理 DSP、音频和电源。每篇指南列出源码位置、板级输入、构建集成和预期观测。
+Wi-Fi、蓝牙、USB，再处理 DSP、音频和电源。每篇指南列出源码位置、板级输入、构建集成和预期观测。
 仅选择必需输入已满足的实现。
 
 **结果：** 每项能力都有配置和验证记录。在 TOML 中选择组件后，还需要对应归档配方和板级接口。

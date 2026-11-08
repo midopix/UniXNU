@@ -4,4 +4,4 @@
 
 Complete and validate [porting.toml](/porting/records) in the device repository to publish its subsystem record.
 
-Dracen-W/UniXNU-merlinx: components without an area: \['MaliG52'\]
+Dracen-W/UniXNU-merlinx: components without an area: \['GopFramebuffer'\]

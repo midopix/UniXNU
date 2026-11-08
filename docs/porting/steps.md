@@ -43,7 +43,7 @@ or create a shared repository. Check resources, platform operations and componen
 dependencies, then pin the source in the device configuration.
 A new OS profile needs the [XNU and patch inputs](/xnu/source-and-patches) and
 [prelink ABI work](/concepts/prelink) before hardware drivers can be qualified.
-An arm64e OS such as iPadOS 26 applies only to supported devices; see
+An arm64e OS such as iOS or iPadOS 27 applies only to supported devices; see
 [arm64e OS profiles](/porting/arm64e).
 
 **Result:** selected repositories and exact source revisions, with unresolved
@@ -125,7 +125,7 @@ the board DTS for XNU's ADT, and the firmware DTB for boot-image assembly.
 ## 6. Adapt drivers in dependency order
 
 Work through [driver adaptation](/porting/drivers): platform and memory,
-storage, display and brightness, input, GPU, Wi-Fi, then DSP, audio and power.
+storage, display and brightness, input, GPU, Wi-Fi, Bluetooth, USB, then DSP, audio and power.
 Each guide identifies source files, board inputs, build integration and expected
 observations. Select only implementations whose required inputs are satisfied.
 

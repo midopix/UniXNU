@@ -83,7 +83,7 @@ kind = "driver"
 function = "A740 kernel GPU driver"
 scope = "gpu"
 repository = "https://github.com/UniXNU/Adreno740.git"
-revision = "a9a2cbb43b89d672e2921e19721a6438b738b17f"
+revision = "6fa7bae2a5b3b523e790eb3e0348af4d98969e4d"
 path = "drivers/Adreno740"
 hardware = ["Adreno 740", "SM8550"]
 os_abi = ["ipados-17.7.11-21H461"]
@@ -105,7 +105,7 @@ kind = "driver"
 function = "Metal frontend through metal2vulkan and Turnip"
 scope = "graphics"
 repository = "https://github.com/UniXNU/AdrenoMetal.git"
-revision = "a0f0287be80a5d8aef5c6b97a6cab62129e152bd"
+revision = "6d7f73437087c57ee54a41adceb1735daaea405e"
 path = "drivers/AdrenoMetal"
 hardware = ["Turnip Darwin backend", "kernel GPU user-client ABI"]
 os_abi = ["ipados-17.7.11-21H461"]
@@ -169,7 +169,7 @@ kind = "driver"
 function = "NT36532 touch protocol and sheng sensor configuration"
 scope = "board"
 repository = "https://github.com/UniXNU/ShengNovatekTouch.git"
-revision = "a1a6f2b1912b3cde2dcbe96439e5833b9ab250f4"
+revision = "3b44b1b7603eaadae942ea44ddc51bdcc48ad060"
 path = "drivers/ShengNovatekTouch"
 hardware = ["Novatek NT36532/NT36532E"]
 os_abi = ["ipados-17.7.11-21H461"]
@@ -211,7 +211,7 @@ kind = "driver"
 function = "UEFI GOP framebuffer and MobileFramebuffer integration"
 scope = "display"
 repository = "https://github.com/UniXNU/GopFramebuffer.git"
-revision = "19ef3a75ad2c53da85b8d923553d922716fce377"
+revision = "e47c1b8de169cd2bd0b885c7d85e433010e3cdf2"
 path = "drivers/GopFramebuffer"
 hardware = ["UEFI GOP framebuffer"]
 os_abi = ["ipados-17.7.11-21H461", "ipados-27.0.1-24A446"]
@@ -255,7 +255,7 @@ kind = "driver"
 function = "AppleKeyStore state and selector handling"
 scope = "os"
 repository = "https://github.com/UniXNU/AppleKeyStoreState.git"
-revision = "42ff83e08b2265fe741d4adaf084bebe003452ba"
+revision = "8c70daf814aafdf4a3d35e40dde0322655fd0a83"
 path = "drivers/AppleKeyStoreState"
 hardware = ["AppleKeyStore ABI"]
 os_abi = ["ipados-17.7.11-21H461", "ipados-27.0.1-24A446"]
@@ -343,7 +343,7 @@ kind = "kit"
 function = "XNU kernelcache prelink and ABI inspection"
 scope = "tool"
 repository = "https://github.com/UniXNU/XnuPrelink.git"
-revision = "b74ed7c74a07f0eb5f81089c660905ecc4cabb7f"
+revision = "c645d76bb0ab8c506a76840ddf93a2276d419a0e"
 path = "kits/XnuPrelink"
 hardware = []
 os_abi = []
@@ -478,7 +478,7 @@ kind = "driver"
 function = "ath12k Wi-Fi transport with MHI and QRTR"
 scope = "controller"
 repository = "https://github.com/UniXNU/Ath12kWifi.git"
-revision = "f6bf561f92cc42761bdd417fce1d53fe1db9477c"
+revision = "28de7b91d7a880682b777e0e3564245a99dbc3f5"
 path = "drivers/Ath12kWifi"
 legacy_name = "NativeWifi"
 hardware = ["ath12k PCI devices", "qcc2072, qcn9274, and wcn7850 build inputs"]
@@ -488,6 +488,46 @@ verified_devices = []
 dependencies = []
 source_files = ["include/nw_abi.h"]
 runtime_identifiers = ["nw_board", "nw_abi"]
+build_stage = "embedded"
+build = []
+outputs = []
+
+[[component]]
+id = "QcaBluetooth"
+repository_id = 1447347374
+kind = "driver"
+function = "Qualcomm Bluetooth over GENI UART for Apple's native stack"
+scope = "controller"
+repository = "https://github.com/UniXNU/QcaBluetooth.git"
+revision = "22ff97f93416452335bb61badb14c762da653487"
+path = "drivers/QcaBluetooth"
+hardware = ["Qualcomm WCN7850 UART controller", "Qualcomm GENI UART"]
+os_abi = ["ipados-27.0.1-24A446"]
+board_dependencies = ["WCN power, clocks, pins and IRQs", "mapped DMA addresses", "firmware files"]
+verified_devices = ["sheng"]
+dependencies = []
+source_files = ["include/qbt.h", "include/qbt_geni.h", "include/qbt_transport.h"]
+runtime_identifiers = ["qbt_transport", "com.apple.uart.sk.bluetooth", "kern.qbt_boot", "kern.qbt_power_on", "kern.qbt_firmware"]
+build_stage = "embedded"
+build = []
+outputs = []
+
+[[component]]
+id = "QcomDwc3"
+repository_id = 1448436865
+kind = "driver"
+function = "Qualcomm DWC3 USB device and host controller for Apple's native stacks"
+scope = "controller"
+repository = "https://github.com/UniXNU/QcomDwc3.git"
+revision = "e4efe95c903a737e0f5955e5b50a8fb4d2a7d718"
+path = "drivers/QcomDwc3"
+hardware = ["Qualcomm DWC3 USB controller", "Synopsys eUSB2 PHY and PM8550B repeater", "QMP USB3/DP PHY", "PS5169 retimer"]
+os_abi = ["ipados-27.0.1-24A446"]
+board_dependencies = ["USB rails and clocks", "stage 1 SMMU context", "UCSI over the charger channel", "prelink roots for the USB stacks"]
+verified_devices = ["sheng"]
+dependencies = []
+source_files = ["QcomDwc3.cpp", "QcomEusb2Phy.h", "QcomQmpUsb3.h", "QcomUcsi.h"]
+runtime_identifiers = ["QcomDwc3Xdci", "QcomDwc3Xhci", "qcom_dwc3_bring_up", "qcom_dwc3_publish", "native_usb_stats"]
 build_stage = "embedded"
 build = []
 outputs = []
@@ -511,12 +551,32 @@ build_stage = "firmware"
 build = []
 outputs = []
 
+[[component]]
+id = "QcomBaseband"
+repository_id = 1443386546
+kind = "driver"
+function = "Qualcomm baseband IOKit bridge, QMUX/QRTR and IPA v4.2"
+scope = "modem"
+repository = "https://github.com/UniXNU/QcomBaseband.git"
+revision = "dd0199cf3300764ed52b23f4a47761f91fab21a2"
+path = "drivers/QcomBaseband"
+hardware = ["Qualcomm QMI over QRTR", "SC7180 IPA v4.2 reference"]
+os_abi = ["ipados-17.7.11-21H461 AppleBaseband IOUserClient"]
+board_dependencies = ["modem power and firmware boot", "GLINK/QRTR transport and rmtfs", "DMA and EFS/NV storage", "cellular ADT and firmware packaging", "raw-IP transport on the QRTR/IPA owner thread"]
+verified_devices = []
+dependencies = []
+source_files = ["baseband/coachz_baseband.cpp", "baseband/QcomBaseband.h", "baseband/coachz_bb_pdp.cpp", "baseband/coachz_bb_pdp.h", "ipa/coachz_ipa_kernel.h", "platform/coachz/coachz_modem.c"]
+runtime_identifiers = ["AppleBaseband", "AppleBasebandPCIControl", "AppleBasebandPCIInterface", "AppleIPAppender", "AppleBasebandPCIMAVPDPManager", "coachz_baseband_configure", "coachz_modem_configure", "coachz_modem_data_send", "coachz_modem_data_receiver", "pdp_ip0", "pdp_ip1", "pdp_ip2", "pdp_ip3"]
+build_stage = "kernel"
+build = ["build-qcom-baseband.py"]
+outputs = ["build/qcom-baseband/libQcomBaseband.a"]
+
 # ---------------------------------------------------------------------------
 # MSM8996 (G0245D) native driver components.
-# These are the G0245D analogues of the SM8550 sheng components. They are
-# registered here but NOT yet enabled in any board.toml: each must be
-# qualified on hardware (and the LLVM toolchain must be ready) before it is
-# linked into a kernel build. See workspace/MSM8996-PORTING-PLAN.md.
+# These are the G0245D analogues of the SM8550 sheng components. The three
+# kernel-stage drivers ARE linked into the device kernel (board.toml +
+# g0245d_defconfig); they are read-only register probes, not a hardware
+# bring-up. Msm8996Platform is an embedded kit and produces no archive.
 # `repository` points at the future component repo; until that repo exists the
 # source lives locally under drivers/ / kits/ and is not cloned by the build.
 # ---------------------------------------------------------------------------

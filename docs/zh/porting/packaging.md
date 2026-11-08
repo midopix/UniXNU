@@ -8,7 +8,7 @@
 1. **一条命令。** `scripts/package.sh` 按下列固定步骤运行，写出产物和清单。第一个失败的步骤会终止运行并指出步骤名。
 2. **配置来自 TOML。** 脚本和 `unixnu release` 中不出现设备名、路径、尺寸、内核参数或版本。取值读自 `board.toml`（以及它选择的配置文件和 feeds）。缺少的值先加进 `board.toml`。
 3. **脚本是固定的。** UniXNU 仓库的 `templates/package.sh` 是唯一来源，设备仓库原样复制。脚本自己读取的板级值只有 `[package] unixnu`，即 UniXNU 检出的路径。
-4. **构建目标是参数。** 单一分支服务所有 OS 配置。`--os 17|26|27|PROFILE` 为本次运行选择配置。随配置不同的取值写在 `board.toml` 的 `[os_overrides."<profile>"]` 下；不按目标建分支，也不为第二个目标另存驱动、补丁或优化。
+4. **构建目标是参数。** 单一分支服务所有 OS 配置。`--os 17|27|PROFILE` 为本次运行选择配置。随配置不同的取值写在 `board.toml` 的 `[os_overrides."<profile>"]` 下；不按目标建分支，也不为第二个目标另存驱动、补丁或优化。
 5. **源码已固定。** `deps` 只获取 `feeds.toml`、`.gitmodules` 和 `unixnu.lock` 指定的版本。
 
 ## 步骤
@@ -27,7 +27,7 @@
 ## 接口
 
 ```sh
-scripts/package.sh [--os 17|26|27|PROFILE] [--no-deps] [--check] [unixnu 选项]
+scripts/package.sh [--os 17|27|PROFILE] [--no-deps] [--check] [unixnu 选项]
 ```
 
 | 选项 | 含义 |
@@ -42,7 +42,7 @@ scripts/package.sh [--os 17|26|27|PROFILE] [--no-deps] [--check] [unixnu 选项]
 ## 在 GitHub 上
 
 设备仓库带有 `.github/workflows/package.yml`。它在 macOS runner 上运行
-`scripts/package.sh`，UniXNU 和 uefi-sheng 检出在设备仓库旁边，并把
+`scripts/package.sh`，UniXNU 和设备 UEFI 检出在设备仓库旁边，并把
 `boot.img`、`payload.img`、`kernel.macho` 和 `package.manifest.json` 作为
 运行的产物。
 
@@ -107,7 +107,7 @@ remove = [ ... ]
 
 [构建与启动](/zh/building)、[设备仓库](/zh/porting/device-repository)
 
-## sheng iPadOS 27 运行输入
+## iOS 27 运行输入
 
 `payload.runtime` 在编译内核前准备运行输入。Apple 静态、System 和 App 信任模块从所选
 IPSW 原样提取；Turnip、AdrenoMetal 和设备音频 HAL 从源码编译，其 CDHash 写入
@@ -119,10 +119,14 @@ GPU 和音频更新放在 addon 中，不修改 seed。构建会检查 APFS 卷 
 本次生成的内核配置，并把输入 SHA-256 写入打包清单。只打包 payload 时，若 UUID
 与内核配置不同则报错，要求重新编译内核。
 
+内核插件写入器显式设置替换后的文件长度与权限，较短的更新会截掉旧尾巴，内容
+相同的文件跳过写入。`python3 scripts/check-addon-writer.py` 使用 VFS 模拟及
+ASan/UBSan 检查该路径。
+
 **首次安装**可用 `scripts/package.sh --os 27 --init-data`，从 IPSW 的初始
 `private/var` 生成 APFS seed，采用设备配置的 `data_gib` 和 Setup 偏好，并把新
 UUID 写入内核配置。该命令只写本机构建文件，不擦除或刷写设备。此后应一直保留
-`out/sheng/ipados-27.0.1-24A446/sheng_ipados27/runtime/data.dbr`。
+`out/<device>/<os_profile>/<config>/runtime/data.dbr`。
 持久化 Data 绑定的是 seed 的内容身份，仅保留 UUID 或从同一 IPSW 重做都不能替代原文件。
 
 Actions 会恢复安装对应的 seed 缓存，也支持原 seed 的下载 URL 加必填 SHA-256。

@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 PIN = json.loads((ROOT / 'scripts/data/gpu-metal-vulkan-inputs.json').read_text())['translator']['commit']
@@ -24,20 +25,18 @@ if subprocess.check_output(['git', '-C', str(SOURCE), 'rev-parse', 'HEAD'], text
     raise SystemExit('Translator revision differs from the qualified source pin')
 PATCHES = [ROOT / 'drivers/AdrenoMetal/bridge/patches' / name for name in [
     # Each stacks on the source the ones before it leave.
-    '0001-optional-constant-output-members.patch', '0002-resource-wait-storage-dependencies.patch',
+    '0002-resource-wait-storage-dependencies.patch',
     '0003-cache-device-entry-point-priming.patch', '0004-fold-constant-global-field-loads.patch',
     # A draw whose pipeline the driver refused binds nothing (int-170: tu_CmdBindPipeline in the render server).
     '0005-skip-draws-without-a-pipeline.patch',
     # A batch's barrier globals on the stack, and the neutral resources' maps by the runtime's key hash.
     '0006-batch-barriers-and-key-hash-neutral-maps.patch',
-    # From the DroidVM board's translator patches: a cache directory a sandboxed process may not write, llvm.bitreverse, a patch
-    # function with no control points, and Core Image kernel libraries (file_type 1) loaded as Metal loads them.
-    '0007-optional-shader-cache-directory.patch', '0008-llvm-bitreverse.patch', '0009-patch-with-no-control-points.patch',
-    '0010-core-image-kernel-libraries.patch',
-    # A two-plane surface's shadow starts as its memory lies; the Astronomy wallpaper's extended-range sRGB blends take the rounded
-    # model; pooled blocks start at 4 MiB and grow (the render server alone held 1 GiB of wired memory).
-    '0011-two-plane-shadow-as-memory-lies.patch', '0012-srgb-extended-range-blend-rounded-model.patch',
-    '0013-growing-memory-blocks.patch',
+    # From the DroidVM board's translator patches: a cache directory a sandboxed process may not write, and a patch function with no
+    # control points.
+    '0007-optional-shader-cache-directory.patch', '0009-patch-with-no-control-points.patch',
+    # A two-plane surface's shadow starts as its memory lies; pooled blocks start at 4 MiB and grow (the render server alone held 1 GiB
+    # of wired memory).
+    '0011-two-plane-shadow-as-memory-lies.patch', '0013-growing-memory-blocks.patch',
     # HostPageTexturePolicy::InPlaceWrites: textures over surfaces and padded buffers are images over their bytes, rendered and written
     # too, where their tile stores stay within their rows, instead of shadows copied in and out every pass.
     '0014-in-place-written-textures.patch', '0015-in-place-written-host-page-textures.patch',
@@ -65,7 +64,17 @@ PATCHES = [ROOT / 'drivers/AdrenoMetal/bridge/patches' / name for name in [
     '0023-quality-of-service-on-ios.patch',
     # The host's diagnostics switch (SHENG_DIAG, from the boot argument sheng-diag=1): without it the stage ring and the allocation sites
     # keep nothing. The stage ring also marks the steps inside a batch's submission (SubmitStep: placed, gathered, vkQueueSubmit, changes).
-    '0024-diagnostics-switch-and-submit-steps.patch']]
+    '0024-diagnostics-switch-and-submit-steps.patch',
+    # Share large indexed constants, read constant GEP offsets, expose Vulkan allocation sizes and name a made function.
+    '0025-specialized-links-shared-constants-and-allocation-size.patch',
+    '0026-frame-diagnostic-links.patch',
+    # Pooled and room-keeper image blocks become spares and serve later placements; the room worker ages them. Frees are upstream's
+    # free thread.
+    '0027-bounded-image-reuse.patch',
+    '0029-latency-stage-selection.patch',
+    # Spare image blocks have no byte limit (they age, go when a block cannot be made and on memory pressure), and the room keeper takes
+    # a spare block before it makes a new one: the limit freed spares the render server made again within seconds, each a fresh wiring.
+    '0030-spare-image-blocks-give-room.patch']]
 
 
 def git_tree(*steps):
@@ -94,13 +103,24 @@ out.mkdir(parents=True, exist_ok=True)
 llvm_as = next((p for p in ['/opt/homebrew/opt/llvm/bin/llvm-as', shutil.which('llvm-as') or ''] if p and Path(p).exists()), None)
 if not llvm_as:
     raise SystemExit('llvm-as (LLVM 21 or newer) is required to assemble the fixture')
+def assemble_fixture(source, target):
+    # Preserve an unchanged include_bytes input so a frontend relink keeps its Rust archive.
+    with tempfile.NamedTemporaryFile(dir=target.parent, suffix='.air', delete=False) as stream:
+        temporary = Path(stream.name)
+    try:
+        subprocess.run([llvm_as, '-o', temporary, source], check=True)
+        if not target.is_file() or temporary.read_bytes() != target.read_bytes():
+            os.replace(temporary, target)
+    finally:
+        temporary.unlink(missing_ok=True)
+
 air = out / 'runtime_examples.air'
-subprocess.run([llvm_as, '-o', air, SOURCE / 'crates/metal2vulkan-validation/fixtures/public/examples/runtime_examples.ll'], check=True)
+assemble_fixture(SOURCE / 'crates/metal2vulkan-validation/fixtures/public/examples/runtime_examples.ll', air)
 fc_air = out / 'function_constant.air'
-subprocess.run([llvm_as, '-o', fc_air, SOURCE / 'crates/metal2vulkan-validation/fixtures/public/kernel_function_constant_gate_fold.ll'], check=True)
+assemble_fixture(SOURCE / 'crates/metal2vulkan-validation/fixtures/public/kernel_function_constant_gate_fold.ll', fc_air)
 # The GPU scanout's half-float conversion kernel (GpuScanoutPresenter.h), hand-written AIR.
 scanout_air = out / 'scanout_convert.air'
-subprocess.run([llvm_as, '-o', scanout_air, ROOT / 'drivers/AdrenoMetal/shaders/scanout_convert.ll'], check=True)
+assemble_fixture(ROOT / 'drivers/AdrenoMetal/shaders/scanout_convert.ll', scanout_air)
 manifest = out / 'Cargo.toml'
 manifest.write_text('\n'.join([
     '[package]', 'name = "adreno-metal-bridge"', 'version = "0.1.0"', 'edition = "2024"', 'rust-version = "1.98"', '[workspace]',
