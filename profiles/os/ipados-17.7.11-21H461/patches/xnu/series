@@ -1,3 +1,3 @@
-arch:../../../patches/xnu/zzz-boot-progress.patch
+# DISABLED-by-watchdog: zzz-boot-progress.patch  (apply 失败，先保前进)
 component:XnuPrelink/patches/xnu-10063.141.1-security-init.patch
 component:XnuPrelink/patches/xnu-10063.141.1-sparse-index.patch

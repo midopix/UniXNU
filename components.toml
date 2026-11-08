@@ -510,3 +510,92 @@ runtime_identifiers = ["ShengPreflight"]
 build_stage = "firmware"
 build = []
 outputs = []
+
+# ---------------------------------------------------------------------------
+# MSM8996 (G0245D) native driver components.
+# These are the G0245D analogues of the SM8550 sheng components. They are
+# registered here but NOT yet enabled in any board.toml: each must be
+# qualified on hardware (and the LLVM toolchain must be ready) before it is
+# linked into a kernel build. See workspace/MSM8996-PORTING-PLAN.md.
+# `repository` points at the future component repo; until that repo exists the
+# source lives locally under drivers/ / kits/ and is not cloned by the build.
+# ---------------------------------------------------------------------------
+
+[[component]]
+id = "NativeUfs8996"
+kind = "driver"
+function = "MSM8996 UFS 2.0 host-controller probe and transport"
+scope = "board"
+repository = "https://github.com/UniXNU/NativeUfs8996.git"
+revision = "LOCAL-SCAFFOLD"
+path = "drivers/NativeUfs8996"
+hardware = ["Qualcomm MSM8996 UFS 2.0 (jedec,ufs-2.0)"]
+os_abi = ["ipados-17.7.11-21H461"]
+board_dependencies = ["MSM8996 clocks and SMMU", "G0245D userdata layout"]
+verified_devices = []
+dependencies = ["VerifiedRoot"]
+source_files = ["NativeUfs8996.cpp"]
+runtime_identifiers = ["NativeUfs8996", "NativeUfs8996.cpp", "org.unixnu.NativeUfs8996"]
+build_stage = "kernel"
+build = ["build-arm-driver.py", "NativeUfs8996"]
+outputs = ["build/native-ufs-8996/libNativeUfs8996.a"]
+legacy_name = "NativeUfs8996"
+
+[[component]]
+id = "Blsp8996"
+kind = "driver"
+function = "MSM8996 BLSP QUP v2 I2C/SPI/UART transport"
+scope = "controller"
+repository = "https://github.com/UniXNU/Blsp8996.git"
+revision = "LOCAL-SCAFFOLD"
+path = "drivers/Blsp8996"
+hardware = ["Qualcomm MSM8996 BLSP QUP v2"]
+os_abi = ["ipados-17.7.11-21H461"]
+board_dependencies = ["MMIO and clocks", "touch/sensor I2C"]
+verified_devices = []
+dependencies = []
+source_files = ["BlspI2c.cpp"]
+runtime_identifiers = ["BlspI2c", "BlspI2c.cpp", "org.unixnu.Blsp8996"]
+build_stage = "kernel"
+build = ["build-arm-driver.py", "Blsp8996"]
+outputs = ["build/blsp-8996/libBlsp8996.a"]
+legacy_name = "Blsp8996"
+
+[[component]]
+id = "Adreno530"
+kind = "driver"
+function = "MSM8996 Adreno 530 (A5xx) GPU driver"
+scope = "gpu"
+repository = "https://github.com/UniXNU/Adreno530.git"
+revision = "LOCAL-SCAFFOLD"
+path = "drivers/Adreno530"
+hardware = ["Adreno 530", "MSM8996"]
+os_abi = ["ipados-17.7.11-21H461"]
+board_dependencies = ["GPU power/clock via MMCC/GCC (no GMU)", "MDP5/DSI0 display"]
+verified_devices = []
+dependencies = ["Msm8996Platform", "ArmSmmu4K"]
+source_files = ["NativeAdreno530.cpp"]
+runtime_identifiers = ["NativeAdreno530", "NativeAdreno530.cpp", "org.unixnu.NativeAdreno530"]
+build_stage = "kernel"
+build = ["build-arm-driver.py", "Adreno530"]
+outputs = ["build/adreno530/libAdreno530.a"]
+legacy_name = "NativeAdreno530"
+
+[[component]]
+id = "Msm8996Platform"
+kind = "kit"
+function = "MSM8996 platform operations (GPU/display power, SMMU banks)"
+scope = "soc"
+repository = "https://github.com/UniXNU/UniXNU-msm8996-common.git"
+revision = "LOCAL-SCAFFOLD"
+path = "kits/Msm8996Platform"
+hardware = ["Qualcomm MSM8996"]
+os_abi = []
+board_dependencies = ["GPU/display/SMMU inputs"]
+verified_devices = []
+dependencies = []
+source_files = ["Msm8996Platform.c"]
+runtime_identifiers = ["Msm8996Platform.c"]
+build_stage = "embedded"
+build = []
+outputs = []

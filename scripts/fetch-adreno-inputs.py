@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import urllib.parse
 import urllib.request
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 pins = json.loads((ROOT / 'scripts/data/adreno-inputs.json').read_text())
@@ -23,12 +24,23 @@ def fetch(item):
     if path.exists():
         data = path.read_bytes()
     else:
-        headers = {'User-Agent': 'sheng-offline-adreno-audit'}
-        if TOKEN and urllib.parse.urlsplit(url).hostname in ('api.github.com', 'raw.githubusercontent.com'):
-            headers['Authorization'] = f'Bearer {TOKEN}'
-        request = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(request, timeout=30) as response:
-            data = response.read()
+        data = None
+        last = None
+        for _i in range(10):
+            try:
+                headers = {'User-Agent': 'sheng-offline-adreno-audit'}
+                if TOKEN and urllib.parse.urlsplit(url).hostname in ('api.github.com', 'raw.githubusercontent.com'):
+                    headers['Authorization'] = f'Bearer {TOKEN}'
+                request = urllib.request.Request(url, headers=headers)
+                with urllib.request.urlopen(request, timeout=30) as response:
+                    data = response.read()
+                break
+            except Exception as e:
+                last = e
+                if _i < 9:
+                    time.sleep(min(2 * (2 ** _i), 60))
+        if data is None:
+            raise last
         if blob:
             data = base64.b64decode(json.loads(data)['content'])
         elif encoding == 'gitiles-base64':

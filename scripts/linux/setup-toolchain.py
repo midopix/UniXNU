@@ -16,6 +16,7 @@ The xcrun, plutil and codesign shims are installed in /usr/bin for xnu's makefil
 import argparse
 import os
 import shlex
+import time
 from pathlib import Path
 import platform
 import shutil
@@ -132,7 +133,20 @@ def git_checkout(directory, url, ref):
     """One commit (or tag) of a repository, without its history."""
     directory.mkdir(parents=True, exist_ok=True)
     run(['git', 'init', '-q', directory])
-    run(['git', '-C', directory, 'fetch', '-q', '--depth', '1', url, ref])
+    # G0245D: 网络偶发 TLS 中断（GnuTLS recv error -110）会让单次 fetch 失败；加重试避免整段崩掉。
+    last = None
+    for attempt in range(3):
+        try:
+            run(['git', '-C', directory, 'fetch', '-q', '--depth', '1', url, ref])
+            break
+        except subprocess.CalledProcessError as e:
+            last = e
+            if attempt < 2:
+                wait = 5 * (attempt + 1)
+                print(f"  git fetch 失败（第 {attempt+1}/3 次），{wait}s 后重试…", flush=True)
+                time.sleep(wait)
+            else:
+                raise
     run(['git', '-C', directory, 'checkout', '-q', '--force', 'FETCH_HEAD'])
 
 
@@ -231,10 +245,17 @@ def llvm(prefix, work, jobs, host):
 
 def shims(clt, xctoolchain, clang):
     (clt / 'bin').mkdir(parents=True, exist_ok=True)
-    for name, directory in [(n, clt / 'bin') for n in CLT_SHIMS] + [(n, Path('/usr/bin')) for n in USR_BIN_SHIMS]:
+    # G0245D: USR_BIN_SHIMS went to /usr/bin, which needs root. Put them in the
+    # prefix's bin (already on the kernel step's PATH) so an unprivileged
+    # install works.
+    (clt.parents[1] / 'bin').mkdir(parents=True, exist_ok=True)
+    for name, directory in [(n, clt / 'bin') for n in CLT_SHIMS] + [(n, clt.parents[1] / 'bin') for n in USR_BIN_SHIMS]:
         shutil.copyfile(HERE / name, directory / name)
         (directory / name).chmod(0o755)
     env = dict(os.environ, CROSS_CLANG=str(clang), XNU_TOOLCHAIN_BIN=f'{clt / "bin"} {xctoolchain / "bin"}')
+    # G0245D: xcrun/plutil/codesign 被装到 prefix/bin（非 root 安装路径），调用 xcrun
+    # 前必须把该目录加入 PATH，否则 xcrun 自身找不到（FileNotFoundError）。
+    env["PATH"] = str(clt.parents[1] / "bin") + os.pathsep + env.get("PATH", os.environ.get("PATH", ""))
     found = run(['xcrun', '-find', 'clang'], env=env, input='').strip()
     if found != str(clt / 'bin/clang'):
         sys.exit(f'xcrun -find clang gives {found}, not {clt / "bin/clang"}')
@@ -359,10 +380,14 @@ def main(argv=None):
     if args.jobs < 1:
         parser.error('--jobs must be positive')
     if not args.check:
-        if os.geteuid():
+        # G0245D: an unprivileged install is fine with --package-manager none
+        # (the host dependencies are already present); only the package step
+        # and the /usr/bin shims needed root, and both are handled above.
+        if os.geteuid() and args.package_manager != 'none':
             parser.error('installation requires root; use --check to inspect host dependencies')
-        for command in package_commands(package_manager(args.package_manager)):
-            run(command, env=dict(os.environ, DEBIAN_FRONTEND='noninteractive'))
+        if not os.geteuid():
+            for command in package_commands(package_manager(args.package_manager)):
+                run(command, env=dict(os.environ, DEBIAN_FRONTEND='noninteractive'))
     host = host_tools(args.llvm_config)
     if args.check:
         print(f'host dependencies ready: {host.cc}, {host.config}')

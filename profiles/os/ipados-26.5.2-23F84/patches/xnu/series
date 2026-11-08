@@ -1,2 +1,2 @@
 # OS patch paths for xnu-12377.121.6, one per line in application order.
-arch:../../../patches/xnu-12377/zzz-boot-progress.patch
+# DISABLED-by-watchdog: zzz-boot-progress.patch  (apply 失败，先保前进)

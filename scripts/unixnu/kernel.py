@@ -87,8 +87,13 @@ def linux_env(ctx):
     """
     toolchain = Path(os.environ.get('UNIXNU_TOOLCHAIN', '/opt/unixnu-linux'))
     clt, xctoolchain = toolchain / 'CommandLineTools/usr', toolchain / 'XcodeDefault.xctoolchain/usr'
+    # G0245D: an unprivileged install keeps the xcrun/plutil/codesign shims in
+    # the prefix's bin instead of /usr/bin.
+    xcrun = toolchain / 'bin/xcrun'
+    if not xcrun.exists():
+        xcrun = Path('/usr/bin/xcrun')
     for path in (toolchain / 'llvm/bin/clang', clt / 'bin/ld', clt / 'bin/xnu-host-cc', clt / 'libexec/migcom',
-                 xctoolchain / 'bin/iig', Path('/usr/bin/xcrun'), toolchain / 'bin/lzfse'):
+                 xctoolchain / 'bin/iig', xcrun, toolchain / 'bin/lzfse'):
         if not path.exists():
             raise Error(f'{path} missing; run "sudo scripts/linux/setup-toolchain.py {toolchain}"')
     fakeroot = ctx.tree / '.cache/fakeroot'

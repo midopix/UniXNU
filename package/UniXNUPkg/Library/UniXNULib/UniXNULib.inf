@@ -31,6 +31,7 @@
 [Packages]
   MdePkg/MdePkg.dec
   UniXNUPkg/UniXNUPkg.dec
+  EmbeddedPkg/EmbeddedPkg.dec
 
 [LibraryClasses]
   BaseLib
@@ -52,6 +53,9 @@
   gUniXNUBlockSliceGuid        ## SOMETIMES_PRODUCES
 
 [Protocols]
+  gEfiCpuArchProtocolGuid           ## CONSUMES
+  gEfiTimerArchProtocolGuid         ## CONSUMES
+  gHardwareInterruptProtocolGuid    ## CONSUMES
   gEfiAcpiTableProtocolGuid         ## SOMETIMES_CONSUMES
   gEfiBlockIoProtocolGuid           ## SOMETIMES_CONSUMES ## SOMETIMES_PRODUCES
   gEfiPartitionInfoProtocolGuid     ## SOMETIMES_CONSUMES

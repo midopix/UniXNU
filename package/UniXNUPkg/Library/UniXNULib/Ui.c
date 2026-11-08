@@ -480,27 +480,41 @@ DrawFramePortrait (
   //
   HasNote       = (Config->Error[0] != '\0') || (Config->Notice[0] != '\0');
   Ui->StatusLines = (Ui->Notice[0] != L'\0') ? STATUS_LINES : 2;
-  FooterRows    = (Ui->StatusLines + (HasNote ? 1 : 0) + ((Ui->Info[0] != L'\0') ? 1 : 0)) * PORTRAIT_STATUS_ROWS;
-  Ui->FooterTop = Ui->Height - Ui->Height / 32 - FooterRows * FooterPitch (Ui);
+
+  //
+  // G0245D: every entry must be visible. Menu navigation wraps over
+  // Config->EntryCount while UniXNUUiDrawEntry refuses to draw anything at
+  // Index >= VisibleRows, so an entry clipped off the column can still be
+  // Selected (and booted) with no highlight anywhere -- on a panel this
+  // small, with Notice and Info both active, VisibleRows came out at 2 of 4
+  // and Tools was unreachable by eye. Shrink the scale until the column
+  // holds every entry, or one remains.
+  //
+  while (TRUE) {
+    Ch    = UNIXNU_GLYPH_HEIGHT * Ui->Scale;
+    Fch   = UNIXNU_GLYPH_HEIGHT * FooterScale (Ui);
+    Inner = Ui->Width - 2 * Ui->Margin;
+
+    FooterRows    = (Ui->StatusLines + (HasNote ? 1 : 0) + ((Ui->Info[0] != L'\0') ? 1 : 0)) * PORTRAIT_STATUS_ROWS;
+    Ui->FooterTop = Ui->Height - Ui->Height / 32 - FooterRows * FooterPitch (Ui);
+    ListBottom    = Ui->FooterTop - Fch * 2;
+    Top           = Ui->Height / 20;
+
+    Pad            = Ch / 2;
+    Ui->CardHeight = Ch + Fch + 2 * Pad;
+    Pitch          = Ui->CardHeight + Ui->Scale * 3;
+    Ui->RowHeight  = Pitch;
+
+    HeaderH = PortraitHeader (Ui, Config, FALSE, 0, 0);
+    MaxRows = (ListBottom > Top + HeaderH + Ch) ? (ListBottom - Top - HeaderH - Ch) / Pitch : 0;
+    if ((MaxRows >= Config->EntryCount) || (Ui->Scale <= 1)) {
+      break;
+    }
+
+    Ui->Scale--;
+  }
+
   FillRect (Ui, Ui->Margin, Ui->FooterTop - Fch, Inner, MAX ((UINTN)1, Ui->Scale / 2), mRule);
-
-  //
-  // Cards: two text lines inside a padded box, a gap between cards.
-  //
-  Pad            = Ch / 2;
-  Ui->CardHeight = Ch + Fch + 2 * Pad;
-  Pitch          = Ui->CardHeight + Ui->Scale * 3;
-  Ui->RowHeight  = Pitch;
-  ListBottom     = Ui->FooterTop - Fch * 2;
-  Top            = Ui->Height / 20;
-
-  //
-  // Cards first, from the bottom up; the header (without the logo) gets what
-  // is above them. The logo takes the space the header leaves free, as large
-  // as the column allows, and is dropped when less than 128 pixels remain.
-  //
-  HeaderH = PortraitHeader (Ui, Config, FALSE, 0, 0);
-  MaxRows = (ListBottom > Top + HeaderH + Ch) ? (ListBottom - Top - HeaderH - Ch) / Pitch : 0;
   Ui->VisibleRows = MIN (Config->EntryCount, MAX (MaxRows, (UINTN)1));
   Ui->MenuTop     = ListBottom - Ui->VisibleRows * Pitch + Ui->Scale * 3;
 

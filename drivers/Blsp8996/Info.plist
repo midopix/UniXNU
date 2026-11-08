@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleIdentifier</key><string>org.unixnu.Blsp8996</string>
+  <key>CFBundleName</key><string>Blsp8996</string>
+  <key>CFBundleExecutable</key><string>Blsp8996</string>
+  <key>CFBundlePackageType</key><string>KEXT</string>
+  <key>CFBundleVersion</key><string>0.1.0</string>
+  <key>OSBundleRequired</key><string>Root</string>
+  <key>IOKitPersonalities</key><dict>
+    <key>msm8996 BLSP QUP v2 I2C</key><dict>
+      <key>IOClass</key><string>BlspI2c</string>
+      <key>IOProviderClass</key><string>IOPlatformDevice</string>
+      <key>IOProbeScore</key><integer>900</integer>
+    </dict>
+  </dict>
+</dict></plist>

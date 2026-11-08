@@ -35,7 +35,9 @@
 STATIC CONST CHAR8  mBuiltinConfig[] =
   "version = 1\n"
   "[boot]\n"
-  "timeout = 10\n"
+  // 60s: G0245D has no verified working keypad yet; 10s was too short to
+  // reach the Tools entry even with the rotate cycle carrying the highlight.
+  "timeout = 60\n"
   "rotate = 2\n"
   "[ui]\n"
   "title = \"UniXNU\"\n"

@@ -190,15 +190,21 @@ ARM_IO_ALIGN = 1 << 24
 
 
 def arm_io_window(hardware):
-    """The arm-io window: child registers are offsets from its base, which XNU reads as the SoC base and requires to be non-zero."""
+    """The arm-io window: child registers are offsets from its base.
+
+    XNU reads the SoC base from arm-io's `ranges` parent address
+    (pe_arm_get_soc_base_phys), and `0` is a legal value there: MSM8996 keeps
+    UFS at 0x624000, BLSP1 at 0x75xxxx and MDSS at 0x900000, so the window
+    starts at physical 0 and every child offset is already an absolute
+    address. The old non-zero assertion treated "window starts at 0" as "no
+    window found", which is only true when the entry is missing altogether.
+    """
     spans = [(physical(entry.parent, address, size), size) for entry in hardware if 'reg' in entry.properties
              for address, size in registers(entry)]
     if not spans:
         return ARM_IO_ALIGN, ARM_IO_ALIGN
     base = min(address for address, _ in spans) & ~(ARM_IO_ALIGN - 1)
     top = -(-max(address + size for address, size in spans) // ARM_IO_ALIGN) * ARM_IO_ALIGN
-    if not base:
-        raise Error('arm-io needs a non-zero base: an exported register lies below 16 MiB')
     return base, top - base
 
 
