@@ -73,13 +73,26 @@ def check_native_root(kernel, arguments, vmm_present=False):
         raise Error('the native UFS root kernel lacks the linked sheng PMGR integration')
 
 
+def uses_fat32(sectors):
+    """Only force FAT32 when the volume really has enough clusters for it.
+
+    mtools formats 512-byte clusters, so a FAT32 volume needs at least 65525 of
+    them (33.5 MiB). EDK2's FAT driver rejects a smaller FAT32 boot sector with
+    EFI_VOLUME_CORRUPTED (FatPkg/EnhancedFatDxe/FatFileSystem.h keeps the limit
+    as FAT_MAX_FAT16_CLUSTER, 0xFFF5), so it never publishes SimpleFileSystem and
+    the payload looks empty on the device while mdir reads it fine. Below the
+    limit let mformat pick the smaller FAT type instead."""
+    return sectors > 0xFFF5 + 0x400
+
+
 def write_volume(stage, image, label, size_mib):
     for tool_name in ('mformat', 'mcopy'):
         tool(tool_name, 'brew install mtools')
     image.unlink(missing_ok=True)
     env = dict(os.environ, MTOOLS_SKIP_CHECK='1', TZ='UTC')
     sectors = size_mib * 2048
-    run(['mformat', '-C', '-F', '-T', str(sectors), '-v', label, '-N', '53484e47', '-i', image, '::'], env=env, capture=True)
+    layout = ['-F'] if uses_fat32(sectors) else []
+    run(['mformat', '-C', *layout, '-T', str(sectors), '-v', label, '-N', '53484e47', '-i', image, '::'], env=env, capture=True)
     for entry in sorted(stage.iterdir()):
         run(['mcopy', '-i', image, '-s', '-Q', '-m', entry, '::/'], env=env, capture=True)
 

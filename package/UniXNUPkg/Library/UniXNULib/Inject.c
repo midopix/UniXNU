@@ -13,6 +13,7 @@
 #include <IndustryStandard/Acpi.h>
 #include <Library/FdtLib.h>
 #include <Protocol/AcpiTable.h>
+#include <Protocol/BlockIo.h>
 #include <Protocol/LoadFile2.h>
 
 //
@@ -33,6 +34,7 @@ UniXNUConnectAll (
   EFI_HANDLE  *Handles;
   UINTN       Count;
   UINTN       Index;
+  UINTN       Pass;
 
   Status = gBS->LocateHandleBuffer (AllHandles, NULL, NULL, &Count, &Handles);
   if (EFI_ERROR (Status)) {
@@ -44,6 +46,27 @@ UniXNUConnectAll (
   }
 
   FreePool (Handles);
+
+  //
+  // The storage stack cascades on one handle: DiskIoDxe, PartitionDxe and
+  // EnhancedFatDxe all bind to the same BlockIo controller, and a driver that
+  // was already probed in a pass does not get asked again inside that pass.
+  // Re-connecting just the BlockIo producers lets the file system driver see
+  // the DiskIo protocol that appeared one step earlier. Three passes cover
+  // DiskIo -> Partition -> Fat; extra passes are cheap no-ops.
+  //
+  for (Pass = 0; Pass < 3; Pass++) {
+    Status = gBS->LocateHandleBuffer (ByProtocol, &gEfiBlockIoProtocolGuid, NULL, &Count, &Handles);
+    if (EFI_ERROR (Status)) {
+      break;
+    }
+
+    for (Index = 0; Index < Count; Index++) {
+      gBS->ConnectController (Handles[Index], NULL, NULL, TRUE);
+    }
+
+    FreePool (Handles);
+  }
 }
 
 //

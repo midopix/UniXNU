@@ -14,7 +14,7 @@
 #include "Internal.h"
 
 #define TICK_MS             100
-#define DEFAULT_ROTATE_SEC  2
+// v106: no implicit rotation default; "rotate = 0" means disabled.
 
 #ifndef SCAN_SUSPEND
 #define SCAN_SUSPEND  0x0102
@@ -119,10 +119,14 @@ UniXNUMenuRun (
     RemainingMs = Config->Timeout * 1000;
   }
 
+  //
+  // v106: "rotate = 0" means DISABLED.  The old fallback silently restored
+  // DEFAULT_ROTATE_SEC whenever no input device was found, which made the
+  // highlight drift on its own -- visually identical to a working keypad
+  // and the direct cause of a false "keys work" read on 2026-11-09.
+  // Rotate only when the configuration explicitly asks for it.
+  //
   RotateMs = Config->RotateSeconds * 1000;
-  if (!HasInput && (RotateMs == 0)) {
-    RotateMs = DEFAULT_ROTATE_SEC * 1000;
-  }
 
   UniXNUUiDrawFrame (Ui, Config);
   for (Index = 0; Index < Count; Index++) {

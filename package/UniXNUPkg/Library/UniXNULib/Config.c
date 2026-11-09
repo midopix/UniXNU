@@ -35,10 +35,13 @@
 STATIC CONST CHAR8  mBuiltinConfig[] =
   "version = 1\n"
   "[boot]\n"
-  // 60s: G0245D has no verified working keypad yet; 10s was too short to
-  // reach the Tools entry even with the rotate cycle carrying the highlight.
-  "timeout = 60\n"
-  "rotate = 2\n"
+  // v106 keypad-diagnosis build: the highlight MUST stay still, otherwise an
+  // automatic rotation is indistinguishable from a working Up/Down key.
+  // "rotate = 0" is now honoured (Menu.c no longer silently restores
+  // DEFAULT_ROTATE_SEC).  300 s is only a safety net: the first real key
+  // press sets UserActive and stops the countdown for good.
+  "timeout = 300\n"
+  "rotate = 0\n"
   "[ui]\n"
   "title = \"UniXNU\"\n"
   "[[entry]]\n"
@@ -1510,6 +1513,7 @@ TryVolume (
 
   Status = UniXNUReadFile (Volume, (CONST CHAR16 *)PcdGetPtr (PcdUniXNUConfigPath), (VOID **)&Text, &Size);
   if (EFI_ERROR (Status)) {
+    UniXNULog ("config: volume 0x%lx: open %s -> %r", (UINT64)(UINTN)Volume, "unixnu.toml", Status);
     return FALSE;
   }
 
@@ -1555,6 +1559,12 @@ UniXNUConfigLoad (
 
   if (!Loaded && (Config->Error[0] == '\0')) {
     Status = gBS->LocateHandleBuffer (ByProtocol, &gEfiSimpleFileSystemProtocolGuid, NULL, &Count, &Handles);
+    //
+    // G0245D: without this the "no boot entry found" case cannot be told apart
+    // from "the FAT driver never published a volume" (fs 0) on a machine with
+    // no serial console.
+    //
+    UniXNULog ("config: fs %u volumes", EFI_ERROR (Status) ? 0 : (UINT32)Count);
     if (!EFI_ERROR (Status)) {
       for (Index = 0; Index < Count && !Loaded && Config->Error[0] == '\0'; Index++) {
         Loaded = TryVolume (Config, Handles[Index]);

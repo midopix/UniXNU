@@ -11,8 +11,15 @@
 #include <Protocol/Cpu.h>
 #include <Protocol/Timer.h>
 #include <Protocol/HardwareInterrupt.h>
+#include <Protocol/UniXNULoader.h>
 
 STATIC EFI_SERIAL_IO_PROTOCOL  *mSerial;
+
+//
+// Mirrored here, not in the log file: with no serial console and no readable
+// memory, the menu is the only place a failure reason can survive.
+//
+CHAR16  gUniXNULastLog[96];
 
 VOID
 UniXNULogInit (
@@ -41,6 +48,16 @@ UniXNULog (
   AsciiVSPrint (Line + Prefix, sizeof (Line) - Prefix - 2, Format, Args);
   VA_END (Args);
   AsciiStrCatS (Line, sizeof (Line), "\r\n");
+
+  //
+  // Mirror the message (without the prefix and the line ending) into Unicode so
+  // the menu can echo it after a boot attempt fails.
+  //
+  for (Size = Prefix; (Line[Size] != '\0') && (Line[Size] != '\r') && (Size - Prefix < 95); Size++) {
+    gUniXNULastLog[Size - Prefix] = (CHAR16)(UINT8)Line[Size];
+  }
+
+  gUniXNULastLog[Size - Prefix] = L'\0';
 
   DEBUG ((PcdGet32 (PcdUniXNUDebugLevel), "%a", Line));
   if (mSerial != NULL) {
@@ -129,6 +146,7 @@ UniXNURun (
     BOOLEAN                IrqState;
     UINT32                 CpuOk, HwOk, IrqOn, TmrOk;
     UINT64                 Pct1, Pct2;
+    UINT64                 El;
     volatile UINTN         Spin;
 
     CpuOk    = 0;
@@ -143,6 +161,13 @@ UniXNURun (
     HwOk  = EFI_ERROR (gBS->LocateProtocol (&gHardwareInterruptProtocolGuid, NULL, &Proto)) ? 0 : 1;
     TmrOk = EFI_ERROR (gBS->LocateProtocol (&gEfiTimerArchProtocolGuid, NULL, &Proto)) ? 0 : 1;
 
+    //
+    // v111: the Darwin loader only accepts a hand-off at EL1. Show the level the
+    // firmware actually runs at, so a photo of the menu answers the question
+    // without waiting for an Advanced Logger capture.
+    //
+    __asm__ volatile ("mrs %0, CurrentEL" : "=r" (El));
+
     Pct1 = ArmReadCntPctReg ();
     for (Spin = 0; Spin < 300000; Spin++) {
     }
@@ -151,10 +176,11 @@ UniXNURun (
     UnicodeSPrint (
       Ui.Info,
       sizeof (Ui.Info),
-      L"drv %u/%u kit %u | CPU%u HW%u IRQ%u TMR%u PCT%u",
+      L"drv %u/%u kit %u | EL%u CPU%u HW%u IRQ%u TMR%u PCT%u",
       (UINT32)Stats.DriversLoaded,
       (UINT32)Stats.DriversFailed,
       (UINT32)Config.KitsLoaded,
+      (UINT32)(El >> 2),
       CpuOk,
       HwOk,
       IrqOn,
@@ -208,7 +234,26 @@ UniXNURun (
     // The payload returned or failed: back to the menu, without the
     // countdown so a broken default cannot loop on a machine with input.
     //
-    UnicodeSPrint (Ui.Notice, sizeof (Ui.Notice), L"'%s' returned: %r", Entry->Title, Status);
+    //
+    // The status alone cannot tell a missing loader protocol from a rejected
+    // hand-off, so the last log line travels with it. The Darwin loader also
+    // parks a more specific reason in a variable of its own -- its Print output
+    // is painted over as soon as the menu redraws -- and that one wins.
+    //
+    {
+      CHAR16  Diag[96];
+      UINTN   DiagSize = sizeof (Diag);
+      CHAR16  *Reason  = gUniXNULastLog;
+
+      if (!EFI_ERROR (gRT->GetVariable (L"UniXNUBootDiag", &gUniXNULoaderProtocolGuid, NULL, &DiagSize, Diag)) &&
+          (Diag[0] != L'\0'))
+      {
+        Reason = Diag;
+      }
+
+      UnicodeSPrint (Ui.Notice, sizeof (Ui.Notice), L"'%s' returned: %r | %s", Entry->Title, Status, Reason);
+    }
+
     UniXNULog ("menu: entry %u returned %r", (UINT32)Index, Status);
     gBS->SetWatchdogTimer (0, 0, 0, NULL);
     Countdown = FALSE;

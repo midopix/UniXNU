@@ -58,8 +58,17 @@ RunXnu (
   Status = gBS->LocateProtocol (&gUniXNULoaderProtocolGuid, NULL, (VOID **)&Loader);
   if (EFI_ERROR (Status)) {
     UniXNULog ("xnu: no loader protocol installed; UniXNU does not provide one");
-    return EFI_UNSUPPORTED;
+    //
+    // Distinct status: "Not Found" on the menu means the loader never published
+    // its protocol, "Unsupported" means one did but disagrees with us.
+    //
+    return EFI_NOT_FOUND;
   }
+
+  UniXNULog ("xnu: loader 0x%lx revision 0x%x boot 0x%lx",
+             (UINT64)(UINTN)Loader,
+             (UINT32)Loader->Revision,
+             (UINT64)(UINTN)Loader->Boot);
 
   if (((Loader->Revision != UNIXNU_LOADER_REVISION_1) &&
        (Loader->Revision != UNIXNU_LOADER_REVISION)) || (Loader->Boot == NULL))
@@ -83,8 +92,23 @@ RunXnu (
   Request.Volume         = Entry->Volume;
   Request.KernelPath     = Entry->Path;
   Request.BootArgs       = Entry->Args;
-  Request.DeviceTree     = Fdt;
-  Request.DeviceTreeSize = FdtSize;
+  //
+  // v111: the Darwin loader owns the device tree. DarwinBoot reads
+  // <kernel>.adt from the same volume as the kernel and its Boot() callback
+  // answers EFI_UNSUPPORTED to any caller-supplied tree, which is exactly what
+  // the menu reported on the device ("'UniXNU' returned: Unsupported").
+  // The tree still gets built above for the efi/linux paths and for the config
+  // patches; it is simply not forwarded here.
+  //
+  if ((Fdt != NULL) || (FdtSize != 0)) {
+    UniXNULog (
+      "xnu: loader owns the tree (<kernel>.adt); firmware DT of %u bytes not forwarded",
+      (UINT32)FdtSize
+      );
+  }
+
+  Request.DeviceTree     = NULL;
+  Request.DeviceTreeSize = 0;
   Request.Ramdisk        = Ramdisk;
   Request.RamdiskSize    = RamdiskSize;
   Request.Kexts          = Kexts;
@@ -140,6 +164,7 @@ UniXNUBootEntry (
 
   Status = UniXNUPrepareDeviceTree (Config, Entry, &Fdt, &FdtSize);
   if (EFI_ERROR (Status)) {
+    UniXNULog ("boot: device tree preparation failed: %r", Status);
     return Status;
   }
 

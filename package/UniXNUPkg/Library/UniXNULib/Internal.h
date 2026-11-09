@@ -54,6 +54,12 @@ UniXNULog (
   ...
   );
 
+///
+/// Last line UniXNULog produced, mirrored into a Unicode buffer so the menu can
+/// show why the last boot attempt failed on a machine with no serial console.
+///
+extern CHAR16  gUniXNULastLog[96];
+
 // ---------------------------------------------------------------------------
 // TOML subset (Toml.c)
 // ---------------------------------------------------------------------------
