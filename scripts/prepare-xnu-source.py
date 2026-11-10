@@ -28,6 +28,28 @@ def fetch(url):
         return response.read()
 
 
+OFFLINE = Path('.cache/sources/headers')
+
+
+def offline_data(entry, destination, name):
+    """Use the persistent, blob-verified local copy before any network access.
+
+    A fresh xnu-work clone wipes the restored headers; the offline copy lives
+    under .cache/sources (which the clone does not touch), so rebuilding a new
+    patch series never needs GitHub connectivity.
+    """
+    try:
+        rel = destination.relative_to(Path('.cache/xnu-work')) / name
+    except ValueError:
+        return None
+    cached = OFFLINE / rel
+    if not cached.is_file():
+        return None
+    data = cached.read_bytes()
+    digest = hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest()
+    return data if digest == entry['sha'] else None
+
+
 def restore(entry, destination=DESTINATION, tag=TAG):
     if entry['type'] != 'file' or not entry['name'].endswith('.h'):
         return None
@@ -35,7 +57,9 @@ def restore(entry, destination=DESTINATION, tag=TAG):
     target = destination / name
     if target.exists():
         return None
-    data = fetch(entry['download_url'])
+    data = offline_data(entry, destination, name)
+    if data is None:
+        data = fetch(entry['download_url'])
     digest = hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest()
     if digest != entry['sha']:
         raise ValueError(f'Git blob hash mismatch: {entry["name"]}')
