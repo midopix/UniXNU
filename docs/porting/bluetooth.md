@@ -1,7 +1,7 @@
 # Bluetooth adaptation
 
 Complete [platform interrupts and DMA](/porting/platform) and supply the
-[runtime inputs](/porting/packaging#runtime-inputs-for-ios-27). [QcaBluetooth](/drivers/qca-bluetooth)
+[runtime inputs](/porting/packaging#runtime-inputs-for-ios-27). [QcaBluetooth](https://github.com/UniXNU/QcaBluetooth)
 runs the Linux `btqca.c` initialization over a GENI UART and carries H4 bytes to Apple's
 `bluetoothd` through UART.SK. Apple's stack owns scanning, pairing, keys, BLE and audio
 profiles.
@@ -106,7 +106,7 @@ The adapter is locked to one `bluetoothd` hash. For another OS build, follow
 [native-ios27.md](https://github.com/UniXNU/QcaBluetooth/blob/22ff97f93416452335bb61badb14c762da653487/native-ios27.md)
 and locate its patch sites again.
 
-Pairing keys need the keychain, which needs [AppleKeyStoreState](/drivers/apple-key-store-state).
+Pairing keys need the keychain, which needs [AppleKeyStoreState](/porting/platform#block-and-os-services).
 The board returns `/chosen/unique-chip-id` through `native_aks_device_id`.
 
 ## 6. Build and verify
@@ -119,7 +119,7 @@ python3 UniXNU-<device>/scripts/check-bluetooth-shared.py
 python3 UniXNU-<device>/scripts/check-wcn-power.py
 ```
 
-From the UniXNU checkout, with `sheng-bluetooth=1` and `log-bluetooth=2` in the board's boot
+From the UniXNU checkout, with `bluetooth=1` and `log-bluetooth=2` in the board's boot
 arguments:
 
 ```sh

@@ -1,6 +1,6 @@
 # USB adaptation
 
-Complete [platform interrupts and DMA](/porting/platform) first. [QcomDwc3](/drivers/qcom-dwc3)
+Complete [platform interrupts and DMA](/porting/platform) first. [QcomDwc3](https://github.com/UniXNU/QcomDwc3)
 derives from Apple's `AppleUSBXDCI` and `AppleUSBXHCI`. The port supplies the register
 window, interrupt, power and PHYs. Apple's USB stacks, `configd` and `lockdownd` run
 unchanged.
@@ -63,7 +63,7 @@ context with write-back inner shareable blocks.
 
 ## 3. Register the classes
 
-The board starts one worker thread when `sheng-usb` is set. It runs:
+The board starts one worker thread when `usb` is set. It runs:
 
 1. `qcom_dwc3_bring_up`.
 2. `OSKextLoadKextWithIdentifier` for `com.apple.driver.AppleUSBXDCI` and
@@ -112,14 +112,13 @@ clang++ -std=c++17 -I.. ucsi_host.cpp && ./a.out
 | `chip-id` | `[payload.adt]` in `board.toml` |
 | `board-id`, `security-domain` | `adt.chosen.u32` in the OS profile |
 | One file system number for `/System` and system daemons | [`native-union-statfs-fsid`](/xnu/patch-reference) |
-| Lock state 3 | [`sheng-aks-sls=3`](/drivers/apple-key-store-state) |
+| Lock state 3 | [`aks-sls=3`](/xnu/boot-arguments) |
 
 Use the model's row in the device map inside `MobileDevice.framework` for the three IDs.
-See [Pairing with a Mac](/drivers/qcom-dwc3#pairing-with-a-mac) for what each answer does.
 
 ## 6. Build and verify
 
-From the UniXNU checkout, with `sheng-usb=1` and `log-sys=1` in the board's boot arguments:
+From the UniXNU checkout, with `usb=1` and `log-sys=1` in the board's boot arguments:
 
 ```sh
 ./unixnu build kernel payload -D ../UniXNU-<device> --os <profile>
@@ -147,8 +146,8 @@ Unlock it and tap Trust; the Mac then reports it as paired and starts a lockdown
 | `UserDeniedPairing` with no dialog on the panel | File system number of `/System` |
 | A passcode prompt after Trust | Lock state |
 
-To test host mode, set `sheng-usb-host=<s>` to force it after a delay and
-`sheng-usb-back=<s>` to return to the cable's role. Record device results as described in
+To test host mode, set `usb-host=<s>` to force it after a delay and
+`usb-back=<s>` to return to the cable's role. Record device results as described in
 [Porting record](/porting/records).
 
 ## Next step

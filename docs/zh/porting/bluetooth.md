@@ -1,7 +1,7 @@
 # 蓝牙适配
 
 先完成[平台中断和 DMA](/zh/porting/platform)，并准备[运行输入](/zh/porting/packaging#ios-27-运行输入)。
-[QcaBluetooth](/zh/drivers/qca-bluetooth) 通过 GENI UART 运行 Linux `btqca.c` 初始化，
+[QcaBluetooth](https://github.com/UniXNU/QcaBluetooth) 通过 GENI UART 运行 Linux `btqca.c` 初始化，
 再经 UART.SK 把 H4 字节传给苹果的 `bluetoothd`。扫描、配对、密钥、BLE 和音频配置文件都由苹果的协议栈负责。
 
 按[驱动接入步骤](/zh/porting/drivers#build-integration)连接构建配方，再执行本页的检查。
@@ -102,7 +102,7 @@ bluetooth_target = "ios27"
 [native-ios27.md](https://github.com/UniXNU/QcaBluetooth/blob/22ff97f93416452335bb61badb14c762da653487/native-ios27.md)
 重新定位补丁位置。
 
-配对密钥依赖钥匙串，钥匙串依赖 [AppleKeyStoreState](/zh/drivers/apple-key-store-state)。
+配对密钥依赖钥匙串，钥匙串依赖 [AppleKeyStoreState](/zh/porting/platform#block-and-os-services)。
 板级代码通过 `native_aks_device_id` 返回 `/chosen/unique-chip-id`。
 
 ## 6. 构建和验证
@@ -115,7 +115,7 @@ python3 UniXNU-<device>/scripts/check-bluetooth-shared.py
 python3 UniXNU-<device>/scripts/check-wcn-power.py
 ```
 
-在 UniXNU 仓库中，确认板级启动参数含 `sheng-bluetooth=1` 和 `log-bluetooth=2`：
+在 UniXNU 仓库中，确认板级启动参数含 `bluetooth=1` 和 `log-bluetooth=2`：
 
 ```sh
 ./unixnu build kernel payload -D ../UniXNU-<device> --os <profile>

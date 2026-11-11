@@ -3,7 +3,7 @@
 The reference latency capture records only the evidence for seven frame-latency questions: foreground allocation, background reservation, submission delay, release and completion, concurrent services and faults, GPU pass cost, and upstream display gaps. Enable it with:
 
 ```text
-sheng-log=1 sheng-gpu-trace=1 sheng-gpu-perf=1 sheng-diag-export=240
+log=1 gpu-trace=1 gpu-perf=1 diag-export=240
 ```
 
 The export runs once at the selected boot-log time. These switches do not schedule a reboot. Leave the device running until the export completes, then return to fastboot and read it. Normal builds leave GPU tracing disabled.
@@ -21,6 +21,23 @@ The export runs once at the selected boot-log time. These switches do not schedu
 | Upstream display gaps | Validation, GPU wait, flip, latch, retirement and blanking; 4 ms samples of the render server's render thread and SpringBoard's main thread; blocked-thread waits with their Mach peers. |
 
 Touch report times bound the analysed intervals.
+
+## Board rows without tracing
+
+`log=1` with `log-gpu=1` prints these rows in every board log slot, without
+`gpu-trace`. `diag=1` keeps them and adds the latency lines of the kernel
+messages of each round as `[diag msgs]`.
+
+| Row | Content |
+| --- | --- |
+| `[gpu jobs]`, `[gpu long]`, `[gpu slow]` | Jobs over 8, 16, 33 and 100 ms, the eight longest jobs and the newest jobs over 8 ms, each with process, queue, ring, priority, IB count and size. `gpu-timeline=1` takes the durations from CP timestamps; otherwise they are an upper bound from the driver's clock. |
+| `[gpu kick]` | The CP's IB position at the first timed-out wait, at the stall stage and 500 microseconds later, and when the job retired. A position that never moved is a stuck CP; one that moved is a long job. |
+| `[gpu pool views]` | Viewed pool grants tracked through the kernel's last-unmap report, and their pages returned to the pool. |
+| `[log round]` | The last and longest round of the board log writer and its slowest step. A round over 10 s is reported in the kernel log, and a panic names the step a round was in. |
+
+`gpu-audit=1` runs the CPU cache line audits of submitted IBs and synchronized
+buffers. They only detect stale lines; the write-combining correction runs on
+every submission either way.
 
 ## Collection policy
 
@@ -60,9 +77,9 @@ The sheng sampler walks a remote kernel stack only while the target is waiting, 
 
 CPU events use kernel uptime. GPU pass timestamps use a hardware clock; their duration can be measured within that clock, while absolute alignment to CPU events requires calibration.
 
-`sheng-gpu-perf=1` enables the 19-counter A7XX BR capture with GPU DCVS and diagnostics. Derived deltas use valid intervals only. These counters describe global GPU intervals; pass timing supplies workload context.
+`gpu-perf=1` enables the 19-counter A7XX BR capture with GPU DCVS and diagnostics. Derived deltas use valid intervals only. These counters describe global GPU intervals; pass timing supplies workload context.
 
-For sheng captures with `sheng-cpufreq=4`, match the governor votes and EPSS domain readbacks in `kernel.cpufreq.bin` to the CPU uptime of each flip. On this board, CPUs 0 to 2, 3 to 6 and 7 belong to distinct frequency domains. In `kernel.client.bin`, peer −2 marks a user PC and LR captured by interrupting the running thread. With CLI1 header flag 1, the wait-event slot in those samples contains the interrupted CPU number. Older exact samples do not identify the CPU. Set `cs-exact=0` to disable the cross-core sampler. With `cs-exact=1 cs-profile=1`, only the SpringBoard main thread receives sampling IPIs. The board samples two available Arm PMUv3 counters for EL0 retired instructions and cycles on the interrupted CPU. The general XNU CPU counter facility stays disabled. A missing PMU, a trapped register, insufficient events and occupied counters have distinct statuses. Use only pairs on the same CPU and thread with the same context-switch count.
+For sheng captures with `cpufreq=4`, match the governor votes and EPSS domain readbacks in `kernel.cpufreq.bin` to the CPU uptime of each flip. On this board, CPUs 0 to 2, 3 to 6 and 7 belong to distinct frequency domains. In `kernel.client.bin`, peer −2 marks a user PC and LR captured by interrupting the running thread. With CLI1 header flag 1, the wait-event slot in those samples contains the interrupted CPU number. Older exact samples do not identify the CPU. Set `cs-exact=0` to disable the cross-core sampler. With `cs-exact=1 cs-profile=1`, only the SpringBoard main thread receives sampling IPIs. The board samples two available Arm PMUv3 counters for EL0 retired instructions and cycles on the interrupted CPU. The general XNU CPU counter facility stays disabled. A missing PMU, a trapped register, insufficient events and occupied counters have distinct statuses. Use only pairs on the same CPU and thread with the same context-switch count.
 
 The profile also records SpringBoard main-thread Mach calls lasting at least 250 µs, including the destination PID, message ID, start of the receive phase and return status. An ordinary receive has no designated sender. The export marks a call still pending when the capture ends. Decode the data and sampler cost with `python3 scripts/sheng-springboard-profile.py kernel.latency.bin`.
 
