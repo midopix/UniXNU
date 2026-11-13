@@ -75,6 +75,37 @@ if [ "$(uname -s)" = Linux ]; then
     MEMORY_SIZE="$(( $(getconf _PHYS_PAGES) * $(getconf PAGE_SIZE) ))"
     SYSCTL_HW_PHYSICALCPU="$(nproc)" SYSCTL_HW_LOGICALCPU="$(nproc)"
     LD_KERNEL_LIBS="$ROOT/.cache/fakeroot/usr/local/lib/kernel/libcc_kext.a")
+  # G0245D (2026-11-13): MakeInc.cmd 用硬编码的 /usr/bin/xcrun -find 解析 HOST_FLEX/HOST_BISON/HOST_GM4，
+  # 但本机 /usr/bin 只读且无 xcrun → 解析为空 → SETUP/config 的 flex/bison 规则拿 -o 当程序名执行而失败。
+  # 改为命令行变量直传（优先级高于 Makefile 内赋值）。gm4 无则退回 m4。
+  _HOST_FLEX="$(command -v flex 2>/dev/null || true)"
+  _HOST_BISON="$(command -v bison 2>/dev/null || true)"
+  _HOST_GM4="$(command -v gm4 2>/dev/null || command -v m4 2>/dev/null || true)"
+  [ -n "$_HOST_FLEX"  ] && XNU_HOST_MAKE_ARGS+=(HOST_FLEX="$_HOST_FLEX")
+  [ -n "$_HOST_BISON" ] && XNU_HOST_MAKE_ARGS+=(HOST_BISON="$_HOST_BISON")
+  [ -n "$_HOST_GM4"   ] && XNU_HOST_MAKE_ARGS+=(HOST_GM4="$_HOST_GM4")
+  # G0245D (2026-11-13 续): MakeInc.cmd 还硬编码 HOST_CODESIGN=/usr/bin/codesign；
+  # 本机无此文件（且 /usr/bin 只读装不了 shim）。unixnu-toolchain/bin/codesign 是 no-op shim
+  # （exit 0，内核宿主工具无需签名），同样命令行直传；codesign_allocate 找不到就退回 true。
+  _HOST_CODESIGN="$(command -v codesign 2>/dev/null || echo /bin/true)"
+  _HOST_CODESIGN_ALLOCATE="$(command -v codesign_allocate 2>/dev/null || echo /bin/true)"
+  XNU_HOST_MAKE_ARGS+=(HOST_CODESIGN="$_HOST_CODESIGN" HOST_CODESIGN_ALLOCATE="$_HOST_CODESIGN_ALLOCATE")
+  # G0245D (2026-11-13 续2): MakeInc.cmd 把 XCRUN 写死为 /usr/bin/xcrun（本机不可装），
+  # 导致 UNIFDEF/SDK 解析等全部 $(shell $(XCRUN) ...) 为空（症状：/bin/sh: UXNU_PLATFORM_MacOSX: not found）。
+  # 命令行覆盖 XCRUN 一处即救活全部解析（unifdef 在 toolchain-root/usr/bin，shim 经 PATH 兜底找到）。
+  _XCRUN="$(command -v xcrun 2>/dev/null || true)"
+  [ -n "$_XCRUN" ] && XNU_HOST_MAKE_ARGS+=("XCRUN=$_XCRUN")
+  # G0245D (2026-11-13 续3): UNIFDEF 同样经 xcrun -find 解析，但 XNU_TOOLCHAIN_BIN 两个
+  # 目录都没有 unifdef，只能靠 make 的 $(shell) PATH 兜底；一旦解析失败 UNIFDEF 为空，
+  # obj/bsd.syscalls.master 产出 0 字节残骸（exit≠2 不报 Parse failure），下游
+  # makesyscalls.sh 生成残废 syscall.h，fakeroot 安装时再报 Inappropriate #endif。
+  # 像其他 PATH 拦路虎一样命令行直传绝对路径，一次性绕开 xcrun -find。
+  _UNIFDEF="$(command -v unifdef 2>/dev/null || true)"
+  [ -n "$_UNIFDEF" ] && XNU_HOST_MAKE_ARGS+=("UNIFDEF=$_UNIFDEF")
+  # G0245D (2026-11-13 续4): MakeInc.cmd:335 又写死 PLUTIL=/usr/bin/plutil（Kernel.framework
+  # Info.plist 转 binary1 用）；unixnu-toolchain/bin/plutil 是 Python plistlib shim，直传覆盖。
+  _PLUTIL="$(command -v plutil 2>/dev/null || true)"
+  [ -n "$_PLUTIL" ] && XNU_HOST_MAKE_ARGS+=("PLUTIL=$_PLUTIL")
 fi
 # The first pass of a new tree (XNU_BOOTSTRAP=1, set by the unixnu driver) only has to leave the compile records and
 # link.filelist for the archive builders that run after it, so it links without their archives.
@@ -832,6 +863,23 @@ if not stamp.exists() or stamp.read_text() != identity:
     stamp.write_text(identity)
 PY
 EXTRA_CFLAGS="$EXTRA_CFLAGS -DXNU_BOOT_PROGRESS=$BOOT_PROGRESS"
+# G0245D (2026-11-13 续5): 上游 Mac 流程在 build 之前有独立 make setup 阶段，编译
+# SETUP/config 的宿主工具 config（doconf 包装它跑）。Linux 上从未跑过 → bsd/conf 的
+# doconf 步骤报 "No such file or directory"。补跑 make setup；doconf 是 csh 脚本
+# （#!/bin/csh 本机没有，/usr/bin 只读装不了），幂等换成 toolchain-root 的 tcsh 绝对路径。
+if [ "$(uname -s)" = Linux ] && [ ! -x .cache/xnu-work/SETUP/config/config ]; then
+  _TCSH="$(command -v tcsh 2>/dev/null || true)"
+  if [ -n "$_TCSH" ] && head -1 .cache/xnu-work/SETUP/config/doconf | grep -q '/bin/csh'; then
+    sed -i "1s|^#!/bin/csh|#!$_TCSH|" .cache/xnu-work/SETUP/config/doconf
+    echo "doconf shebang -> $_TCSH"
+  fi
+  echo "=== make setup（编译 SETUP/config 宿主工具）==="
+  make -C .cache/xnu-work setup SDKROOT=macosx ARCH_CONFIGS=ARM64 \
+    MACHINE_CONFIGS=BCM2837 KERNEL_CONFIGS=DEVELOPMENT \
+    RC_DARWIN_KERNEL_VERSION="$XNU_DARWIN" RC_ProjectSourceVersion="$XNU_VERSION" \
+    MAKEJOBS=-j"${JOBS:-4}" OBJROOT="$ROOT/build/xnu/obj" SYMROOT="$ROOT/build/xnu/sym" \
+    DSTROOT="$KERNEL_SDKROOT" ${XNU_HOST_MAKE_ARGS[@]+"${XNU_HOST_MAKE_ARGS[@]}"}
+fi
 make -C .cache/xnu-work "${XNU_BUILD_TARGET:-build}" SDKROOT="${XNU_SDKROOT:-iphoneos}" ARCH_CONFIGS=ARM64 \
   MACHINE_CONFIGS=BCM2837 KERNEL_CONFIGS=DEVELOPMENT \
   ARCH_STRING_FOR_CURRENT_MACHINE_CONFIG="$XNU_ARCH_STRING" LARGE_MEMORY_DEFINE=-UARM_LARGE_MEMORY \
