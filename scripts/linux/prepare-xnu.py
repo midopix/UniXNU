@@ -9,9 +9,12 @@
 Each rewrite checks whether it is still needed, so both modes can run on every build.
 """
 from pathlib import Path
+import os
 import shutil
 import subprocess
 import sys
+import tarfile
+import urllib.request
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
@@ -96,11 +99,50 @@ def fetch(directory, url, commit, *paths):
     head = subprocess.run(['git', '-C', directory, 'rev-parse', 'HEAD'], capture_output=True, text=True)
     if head.returncode == 0 and head.stdout.strip() == commit:
         return
+    # G0245D (2026-11-13): git fetch 对 github 大仓被代理稳定 502（CONNECT tunnel failed），
+    # 唯一稳定通道是 codeload tarball。llvm-project 优先用本机同 commit 的 clang 构建源树
+    # （G0245D_LLVM_SOURCE，默认指向 build-xnu-clang-linux.sh 解包的 tc-work），零联网；
+    # 其余小仓走 codeload tarball 并只解出需要的 paths。marker 记录 commit，幂等。
+    marker = directory / '.g0245d-commit'
+    if marker.is_file() and marker.read_text().strip() == commit:
+        return
     shutil.rmtree(directory, ignore_errors=True)
-    for command in (['init', '-q', directory], ['-C', directory, 'sparse-checkout', 'set', '--no-cone', *paths],
-                    ['-C', directory, 'fetch', '-q', '--depth', '1', '--filter=blob:none', url, commit],
-                    ['-C', directory, 'checkout', '-q', 'FETCH_HEAD']):
-        subprocess.run(['git', *map(str, command)], check=True)
+    if 'llvm-project' in url:
+        local = Path(os.environ.get(
+            'G0245D_LLVM_SOURCE',
+            '/home/myth/WorkBuddy/2026-11-12-19-08-50/g0245d/workspace/tmp/tc-work/llvm-project'))
+        missing = [p for p in paths if not (local / p).is_dir()]
+        if not missing:
+            for p in paths:
+                (directory / p).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(local / p, directory / p)
+            directory.mkdir(parents=True, exist_ok=True)
+            marker.write_text(commit + '\n')
+            info(f'{directory.name}: sparse-copied {len(paths)} paths from local source at {commit[:12]}')
+            return
+        sys.exit(f'{local}: G0245D_LLVM_SOURCE 缺 {missing}；先用 build-xnu-clang-linux.sh 解出源码')
+    owner_repo = url.removeprefix('https://github.com/').removesuffix('.git')
+    tar_url = f'https://codeload.github.com/{owner_repo}/tar.gz/{commit}'
+    prefix_roots = {p.split('/')[0] for p in paths}
+    with urllib.request.urlopen(tar_url, timeout=300) as response:
+        with tarfile.open(fileobj=response, mode='r|gz') as archive:
+            top = None
+            for member in archive:
+                if top is None:
+                    top = member.name.split('/')[0]
+                    if any(member.name == f'{top}/{root}' for root in prefix_roots) or \
+                       not member.name.startswith(top + '/'):
+                        continue
+                rel = member.name[len(top) + 1:]
+                if not any(rel == p or rel.startswith(p + '/') for p in paths):
+                    continue
+                if member.isfile():
+                    target = directory / rel
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with archive.extractfile(member) as src_fh, open(target, 'wb') as dst_fh:
+                        shutil.copyfileobj(src_fh, dst_fh)
+    marker.write_text(commit + '\n')
+    info(f'{directory.name}: fetched {len(paths)} paths from codeload tarball at {commit[:12]}')
 
 
 def build_cc_kext():
